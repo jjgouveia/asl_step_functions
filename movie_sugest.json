@@ -1,0 +1,46 @@
+{
+  "Comment": "Workflow de Sugestão de Filmes com Anthropic Haiku",
+  "StartAt": "GerarSugestaoFilme",
+  "States": {
+    "GerarSugestaoFilme": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::bedrock:invokeModel",
+      "Parameters": {
+        "modelId": "anthropic.claude-haiku-v1",
+        "contentType": "application/json",
+        "body": {
+          "max_tokens": 500,
+          "messages": [
+            {
+              "role": "user",
+              "content": "Me sugira 3 filmes interessantes considerando os seguintes critérios: meu humor atual, meu histórico de filmes assistidos e minha preferência por gênero. Apresente a sugestão com um breve resumo e por que seria uma boa escolha para mim."
+            }
+          ]
+        }
+      },
+      "Next": "ArmazenarSugestao"
+    },
+    "ArmazenarSugestao": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Parameters": {
+        "TableName": "SugestoesFilmes",
+        "Item": {
+          "id": {"S.$": "$.requestId"},
+          "sugestoes": {"S.$": "$.body.content[0].text"},
+          "dataGeracao": {"S": "${{aws:timestamp}}"}
+        }
+      },
+      "Next": "NotificarSugestao"
+    },
+    "NotificarSugestao": {
+      "Type": "Task", 
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "arn:aws:sns:us-east-1:123456789012:SugestoesFilmes",
+        "Message.$": "$.body.content[0].text"
+      },
+      "End": true
+    }
+  }
+}
